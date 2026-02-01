@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: product-api
+    ports:
+      - "${PORT:-8080}:${PORT:-8080}"
+    env_file:
+      - .env
+    environment:
+      - PORT=${PORT:-8080}
+      - DB_CONN=${DB_CONN}
+    restart: unless-stopped
+    networks:
+      - product-network
+
+networks:
+  product-network:
+    driver: bridge
