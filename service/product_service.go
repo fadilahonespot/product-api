@@ -7,7 +7,7 @@ import (
 )
 
 type ProductServiceInterface interface {
-	GetAll() ([]model.Product, error)
+	GetAll(name string) ([]model.Product, error)
 	Create(data *model.Product) error
 	GetByID(id int) (*model.Product, error)
 	Update(product *model.Product) error
@@ -23,8 +23,8 @@ func NewProductService(productRepo repository.ProductRepositoryInterface, catego
 	return &productService{productRepo: productRepo, categoryRepo: categoryRepo}
 }
 
-func (s *productService) GetAll() ([]model.Product, error) {
-	products, err := s.productRepo.GetAll()
+func (s *productService) GetAll(name string) ([]model.Product, error) {
+	products, err := s.productRepo.GetAll(name)
 	if err != nil {
 		return nil, err
 	}
@@ -68,10 +68,14 @@ func (s *productService) Update(product *model.Product) error {
 	if err != nil {
 		return errors.New("category not found")
 	}
-	err = s.productRepo.Update(product)
+	tx, _ := s.productRepo.BeginTrans()
+	err = s.productRepo.Update(tx, product)
 	if err != nil {
+		s.productRepo.RollbackTrans(tx)
 		return err
 	}
+
+	s.productRepo.CommitTrans(tx)
 	return nil
 }
 

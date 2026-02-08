@@ -6,13 +6,15 @@ RESTful API untuk mengelola produk dan kategori menggunakan Go (Golang) dengan F
 
 - ✅ CRUD operations untuk Categories
 - ✅ CRUD operations untuk Products
+- ✅ Transaction/Checkout system dengan validasi stok
+- ✅ Report summary transaksi harian
 - ✅ Relasi antara Product dan Category
 - ✅ Health check endpoint
 - ✅ PostgreSQL database dengan foreign key constraints
 
 ## Teknologi
 
-- **Language**: Go 1.21+
+- **Language**: Go 1.25
 - **Framework**: Fiber v2
 - **Database**: PostgreSQL
 - **ORM**: database/sql (native Go)
@@ -21,7 +23,7 @@ RESTful API untuk mengelola produk dan kategori menggunakan Go (Golang) dengan F
 
 ### Prerequisites
 
-- Go 1.21 atau lebih tinggi
+- Go 1.25 atau lebih tinggi
 - PostgreSQL database
 - Git
 
@@ -58,6 +60,7 @@ psql -h <host> -U <username> -d <database>
 # Jalankan migrasi
 \i migrations/001_create_categories_table.sql
 \i migrations/002_create_products_table.sql
+\i migrations/003_create_transactions_table.sql
 ```
 
 Atau menggunakan psql command line:
@@ -65,6 +68,7 @@ Atau menggunakan psql command line:
 ```bash
 psql $DB_CONN -f migrations/001_create_categories_table.sql
 psql $DB_CONN -f migrations/002_create_products_table.sql
+psql $DB_CONN -f migrations/003_create_transactions_table.sql
 ```
 
 5. Run application:
@@ -638,6 +642,113 @@ Menghapus produk berdasarkan ID
 
 ---
 
+## Transaction Endpoints
+
+### Checkout (Create Transaction)
+
+#### POST /api/checkout
+
+Membuat transaksi baru (checkout) dengan validasi stok otomatis. Stok produk akan otomatis dikurangi setelah transaksi berhasil dibuat.
+
+**Request Body:**
+
+```json
+{
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2
+    },
+    {
+      "product_id": 2,
+      "quantity": 1
+    }
+  ]
+}
+```
+
+**Response:** `200 OK`
+
+```json
+{
+  "id": 1,
+  "total_amount": 20150000,
+  "created_at": "2026-02-01T10:30:00Z",
+  "details": [
+    {
+      "id": 1,
+      "transaction_id": 1,
+      "product_id": 1,
+      "product_name": "Laptop",
+      "quantity": 2,
+      "subtotal": 20000000
+    },
+    {
+      "id": 2,
+      "transaction_id": 1,
+      "product_id": 2,
+      "product_name": "T-Shirt",
+      "quantity": 1,
+      "subtotal": 150000
+    }
+  ]
+}
+```
+
+**Error Responses:**
+
+`400 Bad Request`
+
+```json
+{
+  "message": "Invalid request body"
+}
+```
+
+`400 Bad Request`
+
+```json
+{
+  "message": "product stock not enough"
+}
+```
+
+**Note:** 
+- Transaksi menggunakan database transaction untuk memastikan atomicity
+- Stok produk akan otomatis dikurangi setelah transaksi berhasil
+- Jika salah satu produk stok tidak cukup, seluruh transaksi akan di-rollback
+
+---
+
+### Get Transaction Summary (Hari Ini)
+
+#### GET /api/report/hari-ini
+
+Mendapatkan ringkasan transaksi untuk hari ini (dari 00:00:00 sampai 23:59:59).
+
+**Response:** `200 OK`
+
+```json
+{
+  "total_revenue": 20150000,
+  "total_transaksi": 5,
+  "produk_terlaris": {
+    "nama": "Laptop",
+    "qty_terjual": 10
+  }
+}
+```
+
+**Error Response:** `500 Internal Server Error`
+
+```json
+{
+  "message": "Failed to get summary"
+}
+```
+
+---
+
 ## Data Models
 
 ### Category
@@ -681,6 +792,95 @@ Menghapus produk berdasarkan ID
 - `stock` (integer, required) - Stok produk (default: 0)
 - `category_id` (integer, required) - Foreign key ke categories table
 - `category` (object, optional) - Object kategori (populated saat GET)
+
+### Transaction
+
+```json
+{
+  "id": 1,
+  "total_amount": 20150000,
+  "created_at": "2026-02-01T10:30:00Z",
+  "details": [
+    {
+      "id": 1,
+      "transaction_id": 1,
+      "product_id": 1,
+      "product_name": "Laptop",
+      "quantity": 2,
+      "subtotal": 20000000
+    }
+  ]
+}
+```
+
+**Fields:**
+
+- `id` (integer) - Primary key, auto-increment
+- `total_amount` (integer, required) - Total jumlah transaksi
+- `created_at` (string) - Timestamp transaksi dibuat
+- `details` (array, optional) - Array detail transaksi
+
+### TransactionDetail
+
+```json
+{
+  "id": 1,
+  "transaction_id": 1,
+  "product_id": 1,
+  "product_name": "Laptop",
+  "quantity": 2,
+  "subtotal": 20000000
+}
+```
+
+**Fields:**
+
+- `id` (integer) - Primary key, auto-increment
+- `transaction_id` (integer, required) - Foreign key ke transactions table
+- `product_id` (integer, required) - Foreign key ke products table
+- `product_name` (string, optional) - Nama produk (populated saat GET)
+- `quantity` (integer, required) - Jumlah produk
+- `subtotal` (integer, required) - Subtotal (price × quantity)
+
+### CheckoutRequest
+
+```json
+{
+  "items": [
+    {
+      "product_id": 1,
+      "quantity": 2
+    }
+  ]
+}
+```
+
+**Fields:**
+
+- `items` (array, required) - Array item yang akan di-checkout
+  - `product_id` (integer, required) - ID produk
+  - `quantity` (integer, required) - Jumlah produk
+
+### SummaryResponse
+
+```json
+{
+  "total_revenue": 20150000,
+  "total_transaksi": 5,
+  "produk_terlaris": {
+    "nama": "Laptop",
+    "qty_terjual": 10
+  }
+}
+```
+
+**Fields:**
+
+- `total_revenue` (integer) - Total pendapatan hari ini
+- `total_transaksi` (integer) - Jumlah transaksi hari ini
+- `produk_terlaris` (object) - Produk terlaris hari ini
+  - `nama` (string) - Nama produk
+  - `qty_terjual` (integer) - Jumlah terjual
 
 ---
 
@@ -734,6 +934,28 @@ CREATE TABLE products (
 );
 ```
 
+### Transactions Table
+
+```sql
+CREATE TABLE transactions (
+    id SERIAL PRIMARY KEY,
+    total_amount INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Transaction Details Table
+
+```sql
+CREATE TABLE transaction_details (
+    id SERIAL PRIMARY KEY,
+    transaction_id INT REFERENCES transactions(id) ON DELETE CASCADE,
+    product_id INT REFERENCES products(id),
+    quantity INT NOT NULL,
+    subtotal INT NOT NULL
+);
+```
+
 ---
 
 ## Testing dengan cURL
@@ -770,6 +992,25 @@ curl -X POST http://localhost:8080/api/product \
 
 ```bash
 curl http://localhost:8080/api/product
+```
+
+### Checkout (Create Transaction)
+
+```bash
+curl -X POST http://localhost:8080/api/checkout \
+  -H "Content-Type: application/json" \
+  -d '{
+    "items": [
+      {"product_id": 1, "quantity": 2},
+      {"product_id": 2, "quantity": 1}
+    ]
+  }'
+```
+
+### Get Transaction Summary (Hari Ini)
+
+```bash
+curl http://localhost:8080/api/report/hari-ini
 ```
 
 ---

@@ -53,6 +53,10 @@ func main() {
 	productService := service.NewProductService(productRepo, categoryRepo)
 	productHandler := handler.NewProductHandler(productService)
 
+	transactionRepo := repository.NewTransactionRepository(db)
+	transactionService := service.NewTransactionService(transactionRepo, productRepo)
+	transactionHandler := handler.NewTransactionHandler(transactionService)
+
 	app.Get("/api/category", categoryHandler.GetAll)
 	app.Get("/api/category/:id", categoryHandler.GetByID)
 	app.Post("/api/category", categoryHandler.Create)
@@ -64,6 +68,9 @@ func main() {
 	app.Post("/api/product", productHandler.Create)
 	app.Put("/api/product/:id", productHandler.Update)
 	app.Delete("/api/product/:id", productHandler.Delete)
+
+	app.Post("/api/checkout", transactionHandler.Create)
+	app.Get("/api/report/hari-ini", transactionHandler.Summary)
 
 	err = app.Listen(":" + config.Port)
 	if err != nil {

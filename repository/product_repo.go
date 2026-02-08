@@ -7,10 +7,13 @@ import (
 )
 
 type ProductRepositoryInterface interface {
-	GetAll() ([]model.Product, error)
+	BeginTrans() (*sql.Tx, error)
+	CommitTrans(tx *sql.Tx) error
+	RollbackTrans(tx *sql.Tx) error
+	GetAll(name string) ([]model.Product, error)
 	Create(product *model.Product) error
 	GetByID(id int) (*model.Product, error)
-	Update(product *model.Product) error
+	Update( tx *sql.Tx, product *model.Product) error
 	Delete(id int) error
 }
 
@@ -23,8 +26,24 @@ func NewProductRepository(db *sql.DB) ProductRepositoryInterface {
 	return &productRepository{db: db}
 }
 
-func (repo *productRepository) GetAll() ([]model.Product, error) {
+
+func (repo *productRepository) BeginTrans() (*sql.Tx, error) {
+	return repo.db.Begin()
+}
+
+func (repo *productRepository) CommitTrans(tx *sql.Tx) error {
+	return tx.Commit()
+}
+
+func (repo *productRepository) RollbackTrans(tx *sql.Tx) error {
+	return tx.Rollback()
+}
+
+func (repo *productRepository) GetAll(name string) ([]model.Product, error) {
 	query := "SELECT id, name, price, stock, category_id FROM products"
+	if name != "" {
+		query += " WHERE name ILIKE '%" + name + "%'"
+	}
 	rows, err := repo.db.Query(query)
 	if err != nil {
 		return nil, err
@@ -66,9 +85,9 @@ func (repo *productRepository) GetByID(id int) (*model.Product, error) {
 	return &p, nil
 }
 
-func (repo *productRepository) Update(product *model.Product) error {
+func (repo *productRepository) Update( tx *sql.Tx, product *model.Product) error {
 	query := "UPDATE products SET name = $1, price = $2, stock = $3, category_id = $4 WHERE id = $5"
-	result, err := repo.db.Exec(query, product.Name, product.Price, product.Stock, product.CategoryID, product.ID)
+	result, err := tx.Exec(query, product.Name, product.Price, product.Stock, product.CategoryID, product.ID)
 	if err != nil {
 		return err
 	}

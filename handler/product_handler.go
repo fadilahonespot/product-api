@@ -16,8 +16,9 @@ func NewProductHandler(productService service.ProductServiceInterface) *ProductH
 	return &ProductHandler{productService: productService}
 }
 
-func (h *ProductHandler) HandleProducts(c *fiber.Ctx) error {
-	products, err := h.productService.GetAll()
+func (h *ProductHandler) HandleProducts(c *fiber.Ctx) error {	
+	name := c.Query("name")
+	products, err := h.productService.GetAll(name)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"message": "Failed to get products",
