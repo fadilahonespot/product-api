@@ -71,6 +71,7 @@ func main() {
 
 	app.Post("/api/checkout", transactionHandler.Create)
 	app.Get("/api/report/hari-ini", transactionHandler.Summary)
+	app.Get("/api/report", transactionHandler.SummaryByDate)
 
 	err = app.Listen(":" + config.Port)
 	if err != nil {

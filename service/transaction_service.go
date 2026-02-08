@@ -4,12 +4,11 @@ import (
 	"errors"
 	"product-api/model"
 	"product-api/repository"
-	"time"
 )
 
 type TransactionServiceInterface interface {
 	Checkout(checkoutRequest *model.CheckoutRequest) (model.Transaction, error)
-	Summary() (model.SummaryResponse, error)
+	Summary(fromDate string, toDate string) (model.SummaryResponse, error)
 }
 
 type transactionService struct {
@@ -62,10 +61,7 @@ func (s *transactionService) Checkout(checkoutRequest *model.CheckoutRequest) (m
 	return transaction, nil
 }
 
-func (s *transactionService) Summary() (model.SummaryResponse, error) {
-	timeNow := time.Now()
-	fromDate := timeNow.Format("2006-01-02") + " 00:00:00"
-	toDate := timeNow.Format("2006-01-02") + " 23:59:59"
+func (s *transactionService) Summary(fromDate string, toDate string) (model.SummaryResponse, error) {
 	transactions, err := s.transactionRepo.GetAll(fromDate, toDate)
 	if err != nil {
 		return model.SummaryResponse{}, err
